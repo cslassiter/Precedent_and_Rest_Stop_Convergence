@@ -1,0 +1,198 @@
+---
+title: "token distribution"
+output: html_document
+date: '2023-01-04'
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#libraries
+```{r}
+library(tidyverse)
+library(tidytable)
+library(viridis)
+library(ggsci)
+```
+
+# Cleaning up the data
+```{r}
+d <- read_csv("RE-MasterModelSocial distributing tokens-table.csv", skip = 6)
+#d <- read_csv("RE-MasterModel-social_v3_7 PrecedentAndLuckinessAllint-table.csv", skip = 6)
+
+d_rich <- read_csv("rest stop precedence, rich.csv", skip = 6)
+
+d1 <- read_csv("Precedence and rest stop convergence, lean.csv", skip = 6)
+
+d%>%
+  mutate.(`total-manymax-maxsize-matches`= str_remove_all(`total-manymax-maxsize-matches`, "\\["))%>%
+  mutate.(`total-manymax-maxsize-matches`= str_remove_all(`total-manymax-maxsize-matches`, "\\]"))%>%
+  separate.(col = `total-manymax-maxsize-matches`, into = c("C1","C2","C3","C4"))%>%
+  mutate(across(C1:C4, as.numeric))%>%
+  rename(`Clusters` = C1)%>%
+  rename(`Max_Clusters` = C2)%>%
+  rename(`Size_Max_Cluster` = C3)%>%
+  rename(`Truth_Match` = C4)->d_clean
+
+```
+
+#getting some details about the largest clusters
+
+```{r}
+d_clean%>%
+  filter(Truth_Match == 5, determination == "max")%>%
+  group_by(`network-type`)%>%
+  summarize(m = mean(Size_Max_Cluster), s = sd(Size_Max_Cluster))%>%
+  ungroup()%>%
+  view()
+  
+  #count(Size_Max_Cluster, determination)%>%
+  
+  view()
+```
+
+
+#the big view
+```{r}
+d1_clean%>%
+  mutate(`network-type` = factor(`network-type`, levels=c("empty", "ring", "ring2", "complete")))%>%
+  filter(Truth_Match == 5)%>%
+  ggplot()+
+  aes(x = Truth_Match, fill = determination)+
+  geom_histogram(bins = 6, position = "dodge")+
+  facet_wrap(`network-type` ~`token-saturation`, nrow = 4)#->det_truth_plot
+
+ggsave(plot = det_truth_plot, "det_and_truth.png", height = 8.5, width = 11, units = "in", path = "C:\\Users\\lassiter\\OneDrive - Gonzaga University\\Documents\\GitHub\\ReflectiveEquilibrium\\Plots", dpi=300, bg = "white", limitsize = FALSE )
+
+
+```
+
+#zoom in on max
+```{r}
+#truth-match by token-saturation and network-type
+d_clean%>%
+  mutate(`network-type` = factor(`network-type`, levels=c("empty", "ring", "ring2", "complete")))%>%
+   add_count(`network-type`, determination, `token-saturation`, name = "all")%>%
+  filter(Truth_Match == 5 & determination == "max" & (`network-type` == "empty" | `network-type` == "complete"))%>%
+  add_count(`network-type`, `token-saturation`, name = "obs")%>%
+  mutate(n = obs/all)%>%
+  ggplot()+
+  aes(x = `token-saturation`, y = n, color = `network-type`)+
+  geom_line(linewidth = 2)+
+  scale_x_reverse()+
+  theme_minimal(base_size = 25)+
+  labs(x = "Token saturation",
+       y = "Proportion of largest clusters\nconverging on the truth",
+       title = "")+
+  guides(color=guide_legend(title="Network type"))+
+  scale_color_futurama()->max_plot
+
+ggsave(plot = max_plot, "max_plot.png", height = 8.5, width = 11, units = "in", path = "C:\\Users\\lassiter\\OneDrive - Gonzaga University\\Documents\\GitHub\\ReflectiveEquilibrium\\Plots", dpi=300, bg = "white", limitsize = FALSE )
+
+##gap between network-types
+d_clean%>%
+  mutate(`network-type` = factor(`network-type`, levels=c("empty", "ring", "ring2", "complete")))%>%
+  filter(Truth_Match == 5 & determination == "max" & (`network-type` == "empty" | `network-type` == "complete"))%>%
+  add_count(`network-type`, `token-saturation`)%>%
+  select(`network-type`, `token-saturation`, n)%>%
+  distinct()%>%
+  pivot_wider(names_from = `network-type`, values_from = n)%>%
+  mutate(difference = complete/empty)%>%
+  ggplot()+
+  aes(x = `token-saturation`, y = difference)+
+  geom_line(linewidth = 1.5, color = "cornflowerblue")+
+  scale_x_reverse()#+
+  theme_minimal(base_size = 25)+
+  labs(x = "token saturation",
+       y = "gap between network types and\nfinding the true rule",
+       title = "plot for max determination")#->max_plot_diff
+
+  ggsave(plot = max_plot_diff, "max_plot_diff.png", height = 8.5, width = 11, units = "in", path = "C:\\Users\\lassiter\\OneDrive - Gonzaga University\\Documents\\GitHub\\ReflectiveEquilibrium\\Plots", dpi=300, bg = "white", limitsize = FALSE)
+
+```
+
+#zoom in on bare
+```{r}
+#truth-match by token-saturation and network-type
+d_clean%>%
+  mutate(`network-type` = factor(`network-type`, levels=c("empty", "ring", "ring2", "complete")))%>%
+   add_count(`network-type`, determination, `token-saturation`, name = "all")%>%
+  filter(Truth_Match == 5 & determination == "bare" & (`network-type` == "empty" | `network-type` == "complete"))%>%
+  add_count(`network-type`, `token-saturation`, name = "obs")%>%
+  mutate(n = obs/all)%>%
+  ggplot()+
+  aes(x = `token-saturation`, y = n, color = `network-type`)+
+  geom_line(linewidth = 2)+
+  scale_x_reverse()+
+  theme_minimal(base_size = 25)+
+  labs(x = "Token saturation",
+       y = "Proportion of largest clusters\nconverging on the truth",
+       title = "")+
+  guides(color=guide_legend(title="Network type"))+
+  scale_color_futurama()-> bare_plot
+
+ggsave(plot = bare_plot, "bare_plot.png", height = 8.5, width = 11, units = "in", path = "C:\\Users\\lassiter\\OneDrive - Gonzaga University\\Documents\\GitHub\\ReflectiveEquilibrium\\Plots", dpi=300, bg = "white", limitsize = FALSE)
+
+##gap between network-types
+d_clean%>%
+  mutate(`network-type` = factor(`network-type`, levels=c("empty", "ring", "ring2", "complete")))%>%
+  filter(Truth_Match == 5 & determination == "bare" & (`network-type` == "empty" | `network-type` == "complete"))%>%
+  add_count(`network-type`, `token-saturation`)%>%
+  select(`network-type`, `token-saturation`, n)%>%
+  distinct()%>%
+  pivot_wider(names_from = `network-type`, values_from = n)%>%
+  mutate(difference = complete - empty)%>%
+  ggplot()+
+  aes(x = `token-saturation`, y = difference)+
+  geom_line(linewidth = 1.5, color = "cornflowerblue")+
+  scale_x_reverse()+
+  theme_minimal(base_size = 25)+
+  labs(x = "token saturation",
+       y = "gap between network types and\nfinding the true rule",
+       title = "plot for max determination")+
+  scale_color_viridis(discrete = TRUE)#->bare_plot_diff
+
+```
+
+#increases across network types
+```{r}
+
+d_clean%>%
+  mutate(`network-type` = str_replace_all(`network-type`, "ring2", "4-regular"))%>%
+  mutate(`network-type` = factor(`network-type`, levels=c("complete","4-regular", "ring", "empty")),
+         determination = ifelse(determination == "bare", "Bare", "Max"))%>% ##factors are reversed for barplot
+  filter(Truth_Match == 5)%>%#,
+        # `token-saturation` == 7 | `token-saturation` == 4 | `token-saturation` == 1)%>%
+  add_count(`token-saturation`, `network-type`, determination)%>%
+  mutate(n = round(n/10000, digits = 2))%>% ##hard-coding because i'm lazy
+  select(n, `token-saturation`, `network-type`, determination)%>%
+  distinct()%>%
+  #filter(determination == "Max")%>%
+  #pivot_wider(names_from = `token-saturation`, values_from = n)%>% view()
+  ggplot()+
+  aes(x = `token-saturation`, y = n, group = `network-type`, fill = `network-type`, label = n)+
+  geom_bar(stat = "identity")+ #position = "dodge"
+  #geom_area()+
+  geom_text(position = position_stack(vjust = .5))+
+  scale_x_discrete()+
+  scale_x_reverse()+ #breaks = c(7, 4, 1)
+  theme_minimal(base_size = 25)+
+  facet_wrap(~determination)+
+  #scale_fill_viridis(discrete = TRUE)+
+  ggsci::scale_fill_futurama()+
+  labs(x = "Token saturation",
+       y = "",
+       title = "")+
+  theme(axis.text.y=element_blank(),
+        axis.ticks.y=element_blank() 
+        )+
+  guides(fill=guide_legend(title="Network type"))#->all_nets_plot_area
+
+ggsave(plot = all_nets_plot_area, "all_nets_rest_stop_area.png", height = 8.5, width = 11, units = "in", path = "C:\\Users\\lassiter\\OneDrive - Gonzaga University\\Documents\\GitHub\\ReflectiveEquilibrium\\Plots", dpi=300, bg = "white", limitsize = FALSE)
+
+```
+
